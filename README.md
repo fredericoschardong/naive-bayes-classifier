@@ -28,4 +28,4 @@ False Positive Rate: 0.070
 F-Measure: 0.770
 ```
 
-As you can see 90% of the documents from the range chosen are used as the training set and 10% is used for testing, that is not part of Mitchell's routine. Also, ten-fold cross validation is implemented so the Mean values are the result of the ten different learning and testing combinations as well as the TP and FP rates and F-Measure.
+As you can see 90% of the documents from the chosen range are used as training set and 10% is used for testing, that is not part of Mitchell's routine. Also, ten-fold cross validation is implemented so the mean values are the result of the ten different learning and testing combinations as well as the TP and FP rates and F-Measure.
