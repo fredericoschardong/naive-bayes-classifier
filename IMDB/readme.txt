@@ -1,0 +1,1 @@
+Os dados estão contidos em duas pastas, "pos" e "neg", referentes às duas classes de interesse do dataset. Dentro de cada pasta há 25k arquivos, nomeados com seu número: o primeiro arquivo tem o nome "0.txt", o segundo "1.txt" e assim sucessivamente, até o último que chama "24999.txt".
