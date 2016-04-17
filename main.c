@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <stdint.h>
 #include <pthread.h>
 
 int CROSS_VALIDATION = 10;
@@ -11,6 +12,18 @@ int *true_positive, *true_negative, *false_positive, *false_negative;
 int start_index, end_index, cross_threshold, total_test_examples, total_learn_examples;
 
 char *directory;
+
+//from http://www.cse.yorku.ca/~oz/hash.html
+unsigned long hash(unsigned char *str){
+  unsigned long hash = 5381;
+  int c;
+
+  while (c = *str++){
+    hash = ((hash << 5) + hash) + c;
+  }
+
+  return hash;
+}
 
 void is_directory(){
   struct stat statbuf;
@@ -25,7 +38,7 @@ void is_directory(){
 }
 
 //have to send the index because of realloc
-int read_file(char ***file, int index, FILE *fp){
+int read_file(unsigned long **file, int index, FILE *fp){
   char buffer[200] = {'\0'}, c;
   int i = 0, j = 0;
 
@@ -36,21 +49,15 @@ int read_file(char ***file, int index, FILE *fp){
 
     if(j > 0 && (c == ' ' || c == '\n' || c == '.')){
       //add a new word, the next word
-      if((file[index] = realloc(file[index], (i + 1) * sizeof(char *))) == NULL) {
+      if((file[index] = realloc(file[index], (i + 1) * sizeof(unsigned long))) == NULL) {
         errx(-1, "second level malloc error, errno = %d, %s", errno, strerror(errno));
       }
 
       //printf("Adding word '%s' at %d\n", buffer, i);
 
-      //alloc the new word from buffer
-      if((file[index][i] = calloc(j + 1, sizeof(char))) == NULL) {
-        errx(-1, "third level malloc error, errno = %d, %s", errno, strerror(errno));
-      }
+      file[index][i] = hash(buffer);
 
-      //will it add the \0? No idea
-      strncpy(file[index][i], buffer, j);
-
-      //printf("%s %d\n", file[index][i], strlen(file[index][i]));
+      //printf("%s %d\n", file[index][i], strlen(buffer));
       memset(buffer, '\0', 200);
 
       j = 0;
@@ -61,13 +68,13 @@ int read_file(char ***file, int index, FILE *fp){
   return i;
 }
 
-int get_vocabulary(char ***learn_examples, int *words_per_learn_example, char ***vocabulary, int total_learn_examples){
+int get_vocabulary(unsigned long **learn_examples, int *words_per_learn_example, unsigned long **vocabulary, int total_learn_examples){
   int i, j, k, found;
   int vocabulary_counter = 0;
-  char **vocabulary_temp;
+  unsigned long *vocabulary_temp;
 
   //realloc later
-  if((vocabulary_temp = malloc(sizeof(char *))) == NULL) {
+  if((vocabulary_temp = malloc(sizeof(unsigned long))) == NULL) {
     errx(-1, "error on vocabulary malloc, errno = %d, %s", errno, strerror(errno));
   }
 
@@ -77,7 +84,7 @@ int get_vocabulary(char ***learn_examples, int *words_per_learn_example, char **
       found = 0;
 
       for(k = 0; k < vocabulary_counter; k++){
-        if(strcmp(vocabulary_temp[k], learn_examples[i][j]) == 0){
+        if(vocabulary_temp[k] == learn_examples[i][j]){
           found = 1;
           //printf("Found '%s' at %d\n", vocabulary_temp[k], k);
           break;
@@ -85,17 +92,12 @@ int get_vocabulary(char ***learn_examples, int *words_per_learn_example, char **
       }
 
       if(!found){
-        if((vocabulary_temp = realloc(vocabulary_temp, (vocabulary_counter + 1) * sizeof(char *))) == NULL) {
+        if((vocabulary_temp = realloc(vocabulary_temp, (vocabulary_counter + 1) * sizeof(unsigned long))) == NULL) {
           errx(-1, "second level malloc error, errno = %d, %s", errno, strerror(errno));
         }
 
-        //add the new word from buffer
-        if((vocabulary_temp[vocabulary_counter] = calloc(strlen(learn_examples[i][j]) + 1, sizeof(char))) == NULL) {
-          errx(-1, "vocabulary malloc error, errno = %d, %s", errno, strerror(errno));
-        }
-
-        strncpy(vocabulary_temp[vocabulary_counter], learn_examples[i][j], strlen(learn_examples[i][j]));
-        //printf("Adding '%s' at %d\n", learn_examples[i][j], vocabulary_counter);
+        vocabulary_temp[vocabulary_counter] = learn_examples[i][j];
+        //printf("Adding '%f' at %d\n", learn_examples[i][j], vocabulary_counter);
 
         vocabulary_counter++;
       }
@@ -106,7 +108,7 @@ int get_vocabulary(char ***learn_examples, int *words_per_learn_example, char **
   return vocabulary_counter;
 }
 
-void read_examples(char ***examples, int *words_per_learn_example, int cross_learning_start_index, int start_index, int end_index, int total_examples){
+void read_examples(unsigned long **examples, int *words_per_learn_example, int cross_learning_start_index, int start_index, int end_index, int total_examples){
   char file_path[strlen(directory) + 11]; // will append "/24999.txt" + 1 for \0
   int i, half;
   FILE *fp;
@@ -122,7 +124,7 @@ void read_examples(char ***examples, int *words_per_learn_example, int cross_lea
       errx(-1, "File opening error, errno = %d, %s - %s", errno, strerror(errno), file_path);
     }
 
-    if((examples[i] = malloc(sizeof(char *))) == NULL) {
+    if((examples[i] = malloc(sizeof(unsigned long))) == NULL) {
       errx(-1, "Second level malloc error, errno = %d, %s", errno, strerror(errno));
     }
 
@@ -136,15 +138,14 @@ void read_examples(char ***examples, int *words_per_learn_example, int cross_lea
 
 void *thread(void *arg){
   int *words_per_learn_example, *words_per_test_example;
-  char **vocabulary;
+  unsigned long *vocabulary;
 
   //first level: multiple files
   //second level: multiple words
-  //third level: multiple letters
-  char ***learn_examples;
-  char ***test_examples;
+  unsigned long **learn_examples;
+  unsigned long **test_examples;
 
-  uint i = (uint)arg;
+  uint i = (intptr_t)arg;
   int j, k, l;
 
   int cross_learning_start_index = cross_threshold * i + start_index;
@@ -168,12 +169,12 @@ void *thread(void *arg){
   }
 
   //first level malloc for learn_examples
-  if((learn_examples = malloc(total_learn_examples * sizeof(char **))) == NULL) {
+  if((learn_examples = malloc(total_learn_examples * sizeof(unsigned long *))) == NULL) {
     errx(-1, "error on first level learn_examples malloc, errno = %d, %s", errno, strerror(errno));
   }
 
   //first level malloc for test_examples
-  if((test_examples = malloc(total_test_examples * sizeof(char **))) == NULL) {
+  if((test_examples = malloc(total_test_examples * sizeof(unsigned long *))) == NULL) {
     errx(-1, "error on first level test_examples malloc, errno = %d, %s", errno, strerror(errno));
   }
 
@@ -223,7 +224,7 @@ void *thread(void *arg){
 
     for(k = 0; k < total_learn_examples; k++){
       for(l = 0; l < words_per_learn_example[k]; l++){
-        if(strcmp(vocabulary[j], learn_examples[k][l]) == 0){
+        if(vocabulary[j] == learn_examples[k][l]){
           if(k >= learn_half_index){
             n_pos++;
           }
@@ -248,7 +249,7 @@ void *thread(void *arg){
     for(k = 0; k < words_per_test_example[j]; k++){
       for(l = 0; l < vocabulary_length; l++){
         //all word positions in Doc that contain tokens found in Vocabulary
-        if(strcmp(vocabulary[l], test_examples[j][k]) == 0){
+        if(vocabulary[l] == test_examples[j][k]){
           NB_pos += P_conditional_pos[l];
           NB_neg += P_conditional_neg[l];
         }
@@ -339,7 +340,7 @@ int main(int argc, char **argv){
   pthread_t threads[CROSS_VALIDATION];
 
   for(i = 0; i < CROSS_VALIDATION; i++){
-		if (pthread_create(&(threads[i]), NULL, &thread, i) != 0){
+		if (pthread_create(&(threads[i]), NULL, &thread, (void *)(intptr_t)i) != 0){
 			errx(-1, "can't create thread :[%s]");
 		}
 	}
