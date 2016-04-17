@@ -4,10 +4,15 @@
 #include <errno.h>
 #include <math.h>
 #include <sys/stat.h>
+#include <pthread.h>
 
 int CROSS_VALIDATION = 10;
+int *true_positive, *true_negative, *false_positive, *false_negative;
+int start_index, end_index, cross_threshold, total_test_examples, total_learn_examples;
 
-void is_directory(char *directory){
+char *directory;
+
+void is_directory(){
   struct stat statbuf;
 
   if(stat(directory, &statbuf) == -1) {
@@ -101,7 +106,7 @@ int get_vocabulary(char ***learn_examples, int *words_per_learn_example, char **
   return vocabulary_counter;
 }
 
-void read_examples(char ***examples, char *directory, int *words_per_learn_example, int cross_learning_start_index, int start_index, int end_index, int total_examples){
+void read_examples(char ***examples, int *words_per_learn_example, int cross_learning_start_index, int start_index, int end_index, int total_examples){
   char file_path[strlen(directory) + 11]; // will append "/24999.txt" + 1 for \0
   int i, half;
   FILE *fp;
@@ -129,41 +134,8 @@ void read_examples(char ***examples, char *directory, int *words_per_learn_examp
   }
 }
 
-void free_variables(char ***learn_examples, char ***test_examples, char **vocabulary, int *words_per_learn_example,
-                    int *words_per_test_example, int total_learn_examples, int total_test_examples, int vocabulary_length){
-  int i, j;
-
-  for(i = 0; i < total_learn_examples; i++){
-    for(j = 0; j < words_per_learn_example[i]; j++){
-      free(learn_examples[i][j]);
-    }
-
-    free(learn_examples[i]);
-  }
-
-  for(i = 0; i < total_test_examples; i++){
-    for(j = 0; j < words_per_test_example[i]; j++){
-      free(test_examples[i][j]);
-    }
-
-    free(test_examples[i]);
-  }
-
-  for(i = 0; i < vocabulary_length; i++){
-    free(vocabulary[i]);
-  }
-
-  free(learn_examples);
-  free(test_examples);
-  free(vocabulary);
-  free(words_per_learn_example);
-  free(words_per_test_example);
-}
-
-int main(int argc, char **argv){
-  int *words_per_learn_example, *words_per_test_example, *text_neg, *text_pos;
-  int i, j, k, l, m, n;
-  char *directory;
+void *thread(void *arg){
+  int *words_per_learn_example, *words_per_test_example;
   char **vocabulary;
 
   //first level: multiple files
@@ -172,12 +144,147 @@ int main(int argc, char **argv){
   char ***learn_examples;
   char ***test_examples;
 
+  uint i = (uint)arg;
+  int j, k, l;
+
+  int cross_learning_start_index = cross_threshold * i + start_index;
+  int cross_learning_end_index = cross_threshold * ((CROSS_VALIDATION - 1 + i) % (CROSS_VALIDATION)) - 1 + start_index;
+  int cross_testing_start_index = cross_learning_end_index + 1;
+  int cross_testing_end_index = cross_testing_start_index + cross_threshold - 1;
+
+  if(cross_learning_end_index == -1){
+    cross_learning_end_index = end_index;
+  }
+
+  //printf("Cross validation number %d, training with files %d.txt - %d.txt, testing with files %d.txt - %d.txt\n", i,
+  //  cross_learning_start_index, cross_learning_end_index, cross_testing_start_index, cross_testing_end_index);
+
+  if((words_per_learn_example = calloc(total_learn_examples, sizeof(int))) == NULL) {
+    errx(-1, "error on words_per_learn_example malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((words_per_test_example = calloc(total_learn_examples, sizeof(int))) == NULL) {
+    errx(-1, "error on words_per_test_example malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  //first level malloc for learn_examples
+  if((learn_examples = malloc(total_learn_examples * sizeof(char **))) == NULL) {
+    errx(-1, "error on first level learn_examples malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  //first level malloc for test_examples
+  if((test_examples = malloc(total_test_examples * sizeof(char **))) == NULL) {
+    errx(-1, "error on first level test_examples malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  //1. Collect all words and other tokens that occur in Examples:
+  read_examples(learn_examples, words_per_learn_example, cross_learning_start_index, start_index, end_index, total_learn_examples);
+
+  //Vocabulary ← all distinct words and other tokens in Examples
+  int vocabulary_length = get_vocabulary(learn_examples, words_per_learn_example, &vocabulary, total_learn_examples);
+
+  read_examples(test_examples, words_per_test_example, cross_testing_start_index, start_index, end_index, total_test_examples);
+
+  int N_pos = 0;
+  int N_neg = 0;
+
+  int learn_half_index = ceil(total_learn_examples / 2);
+  int test_half_index = ceil(total_test_examples / 2);
+
+  //n ← total number of words in Texti (counting duplicate words multiple times)
+  //get total positive and negative words
+  for(j = 0; j < total_learn_examples; j++){
+    int index = (i >= learn_half_index ? i % learn_half_index : i);
+
+    if(j >= learn_half_index){
+      N_pos += words_per_learn_example[j];
+    }
+    else{
+      N_neg += words_per_learn_example[j];
+    }
+  }
+
+  double *P_conditional_pos;
+  double *P_conditional_neg;
+
+  if((P_conditional_pos = calloc(vocabulary_length, sizeof(double))) == NULL) {
+    errx(-1, "error on P_conditional_pos malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((P_conditional_neg = calloc(vocabulary_length, sizeof(double))) == NULL) {
+    errx(-1, "error on P_conditional_neg malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  //for each word Wj in Vocabulary
+  for(j = 0; j < vocabulary_length; j++){
+    //nj ← number of times word Wj occurs in Texti
+    int n_pos = 0;
+    int n_neg = 0;
+
+    for(k = 0; k < total_learn_examples; k++){
+      for(l = 0; l < words_per_learn_example[k]; l++){
+        if(strcmp(vocabulary[j], learn_examples[k][l]) == 0){
+          if(k >= learn_half_index){
+            n_pos++;
+          }
+          else{
+            n_neg++;
+          }
+        }
+      }
+    }
+
+    //P(Wj|Bi) ← (nj + 1) / (n + |Vocabulary|) using logarithm
+    P_conditional_pos[j] = log((n_pos + 1) / (double) (N_pos + vocabulary_length));
+    P_conditional_neg[j] = log((n_neg + 1) / (double) (N_neg + vocabulary_length));
+  }
+
+  
+  //CLASSIFY_NAIVE_BAYES_TEXT(Doc)
+  for(j = 0; j < total_test_examples; j++){
+    double NB_pos = 0;
+    double NB_neg = 0;
+
+    for(k = 0; k < words_per_test_example[j]; k++){
+      for(l = 0; l < vocabulary_length; l++){
+        //all word positions in Doc that contain tokens found in Vocabulary
+        if(strcmp(vocabulary[l], test_examples[j][k]) == 0){
+          NB_pos += P_conditional_pos[l];
+          NB_neg += P_conditional_neg[l];
+        }
+      }
+    }
+
+    if(NB_pos > NB_neg){
+      if(j >= test_half_index){
+        true_positive[i]++;
+      }
+      else{
+        false_positive[i]++;
+      }
+    }
+    else{
+      if(j >= test_half_index){
+        false_negative[i]++;
+      }
+      else{
+        true_negative[i]++;
+      }
+    }
+  }
+
+  //printf("TP: %d, FN: %d, TN: %d, FP %d, Total: %d\n", true_positive[i], false_negative[i], true_negative[i], false_positive[i], true_positive[i] + false_negative[i] + true_negative[i] + false_positive[i]);
+}
+
+int main(int argc, char **argv){
+  int i;
+
   if(argc != 4){
     errx(-1, "Expecting 3 parameters: <IMDB directory> <start_index> <end_index>");
   }
 
-  int start_index = strtoull(argv[2], NULL, 10);
-  int end_index = strtoull(argv[3], NULL, 10);
+  start_index = strtoull(argv[2], NULL, 10);
+  end_index = strtoull(argv[3], NULL, 10);
 
   if((directory = malloc((1 + strlen(argv[1])) * sizeof(char))) == NULL) {
     errx(-1, "error on directory malloc, errno = %d, %s", errno, strerror(errno));
@@ -196,9 +303,9 @@ int main(int argc, char **argv){
     errx(-1, "Total number of files (got %d) must be multiple of %d\n", 1 + end_index - start_index, CROSS_VALIDATION);
   }
 
-  int cross_threshold = ((1 + end_index - start_index) / CROSS_VALIDATION);
-  int total_test_examples = cross_threshold * 2; //number of files on each cross validation subset
-  int total_learn_examples = ((1 + end_index - start_index) * 2) - total_test_examples; //*2 because we have neg and pos subfolders
+  cross_threshold = ((1 + end_index - start_index) / CROSS_VALIDATION);
+  total_test_examples = cross_threshold * 2; //number of files on each cross validation subset
+  total_learn_examples = ((1 + end_index - start_index) * 2) - total_test_examples; //*2 because we have neg and pos subfolders
 
   printf("Reading from: %s\n", directory);
   printf("Start index: %d\n", start_index);
@@ -211,8 +318,6 @@ int main(int argc, char **argv){
   int true_negative_total = 0;
   int false_positive_total = 0;
   int false_negative_total = 0;
-
-  int *true_positive, *true_negative, *false_positive, *false_negative;
 
   if((true_positive = calloc(CROSS_VALIDATION, sizeof(int))) == NULL) {
     errx(-1, "error on true_positive malloc, errno = %d, %s", errno, strerror(errno));
@@ -230,150 +335,26 @@ int main(int argc, char **argv){
     errx(-1, "error on false_negative malloc, errno = %d, %s", errno, strerror(errno));
   }
 
+  //10 threads, I know
+  pthread_t threads[CROSS_VALIDATION];
+
   for(i = 0; i < CROSS_VALIDATION; i++){
-    int cross_learning_start_index = cross_threshold * i + start_index;
-    int cross_learning_end_index = cross_threshold * ((CROSS_VALIDATION - 1 + i) % (CROSS_VALIDATION)) - 1 + start_index;
-    int cross_testing_start_index = cross_learning_end_index + 1;
-    int cross_testing_end_index = cross_testing_start_index + cross_threshold - 1;
+		if (pthread_create(&(threads[i]), NULL, &thread, i) != 0){
+			errx(-1, "can't create thread :[%s]");
+		}
+	}
 
-    if(cross_learning_end_index == -1){
-      cross_learning_end_index = end_index;
-    }
+	for(i = 0; i < CROSS_VALIDATION; i++){
+		if(pthread_join(threads[i], NULL) != 0){
+			errx(-1, "pthread_join %s");
+		}
+	}
 
-    //printf("Cross validation number %d, training with files %d.txt - %d.txt, testing with files %d.txt - %d.txt\n", i,
-    //  cross_learning_start_index, cross_learning_end_index, cross_testing_start_index, cross_testing_end_index);
-
-    //docs can't be larger then the total number of examples
-    if((text_neg = calloc(total_learn_examples, sizeof(int))) == NULL) {
-      errx(-1, "error on text_neg malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    if((text_pos = calloc(total_learn_examples, sizeof(int))) == NULL) {
-      errx(-1, "error on text_pos malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    if((words_per_learn_example = calloc(total_learn_examples, sizeof(int))) == NULL) {
-      errx(-1, "error on words_per_learn_example malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    if((words_per_test_example = calloc(total_learn_examples, sizeof(int))) == NULL) {
-      errx(-1, "error on words_per_test_example malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    //first level malloc for learn_examples
-    if((learn_examples = malloc(total_learn_examples * sizeof(char **))) == NULL) {
-      errx(-1, "error on first level learn_examples malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    //first level malloc for test_examples
-    if((test_examples = malloc(total_test_examples * sizeof(char **))) == NULL) {
-      errx(-1, "error on first level test_examples malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    //1. Collect all words and other tokens that occur in Examples:
-    read_examples(learn_examples, directory, words_per_learn_example, cross_learning_start_index, start_index, end_index, total_learn_examples);
-
-    //Vocabulary ← all distinct words and other tokens in Examples
-    int vocabulary_length = get_vocabulary(learn_examples, words_per_learn_example, &vocabulary, total_learn_examples);
-
-    read_examples(test_examples, directory, words_per_test_example, cross_testing_start_index, start_index, end_index, total_test_examples);
-
-    int N_pos = 0;
-    int N_neg = 0;
-
-    int learn_half_index = ceil(total_learn_examples / 2);
-    int test_half_index = ceil(total_test_examples / 2);
-
-    //n ← total number of words in Texti (counting duplicate words multiple times)
-    //get total positive and negative words
-    for(j = 0; j < total_learn_examples; j++){
-      int index = (i >= learn_half_index ? i % learn_half_index : i);
-
-      if(j >= learn_half_index){
-        N_pos += words_per_learn_example[j];
-      }
-      else{
-        N_neg += words_per_learn_example[j];
-      }
-    }
-
-    double *P_conditional_pos;
-    double *P_conditional_neg;
-
-    if((P_conditional_pos = calloc(vocabulary_length, sizeof(double))) == NULL) {
-      errx(-1, "error on P_conditional_pos malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    if((P_conditional_neg = calloc(vocabulary_length, sizeof(double))) == NULL) {
-      errx(-1, "error on P_conditional_neg malloc, errno = %d, %s", errno, strerror(errno));
-    }
-
-    //for each word Wj in Vocabulary
-    for(j = 0; j < vocabulary_length; j++){
-      //nj ← number of times word Wj occurs in Texti
-      int n_pos = 0;
-      int n_neg = 0;
-
-      for(k = 0; k < total_learn_examples; k++){
-        for(l = 0; l < words_per_learn_example[k]; l++){
-          if(strcmp(vocabulary[j], learn_examples[k][l]) == 0){
-            if(k >= learn_half_index){
-              n_pos++;
-            }
-            else{
-              n_neg++;
-            }
-          }
-        }
-      }
-
-      //P(Wj|Bi) ← (nj + 1) / (n + |Vocabulary|) using logarithm
-      P_conditional_pos[j] = log((n_pos + 1) / (double) (N_pos + vocabulary_length));
-      P_conditional_neg[j] = log((n_neg + 1) / (double) (N_neg + vocabulary_length));
-    }
-
-    
-    //CLASSIFY_NAIVE_BAYES_TEXT(Doc)
-    for(j = 0; j < total_test_examples; j++){
-      double NB_pos = 0;
-      double NB_neg = 0;
-
-      for(k = 0; k < words_per_test_example[j]; k++){
-        for(l = 0; l < vocabulary_length; l++){
-          //all word positions in Doc that contain tokens found in Vocabulary
-          if(strcmp(vocabulary[l], test_examples[j][k]) == 0){
-            NB_pos += P_conditional_pos[l];
-            NB_neg += P_conditional_neg[l];
-          }
-        }
-      }
-
-      if(NB_pos > NB_neg){
-        if(j >= test_half_index){
-          true_positive[i]++;
-        }
-        else{
-          false_positive[i]++;
-        }
-      }
-      else{
-        if(j >= test_half_index){
-          false_negative[i]++;
-        }
-        else{
-          true_negative[i]++;
-        }
-      }
-    }
-
-    //printf("TP: %d, FN: %d, TN: %d, FP %d, Total: %d\n", true_positive[i], false_negative[i], true_negative[i], false_positive[i], true_positive[i] + false_negative[i] + true_negative[i] + false_positive[i]);
-
+  for(i = 0; i < CROSS_VALIDATION; i++){
     true_positive_total += true_positive[i];
     true_negative_total += true_negative[i];
     false_positive_total += false_positive[i];
     false_negative_total += false_negative[i];
-
-    free_variables(learn_examples, test_examples, vocabulary, words_per_learn_example, words_per_test_example, total_learn_examples, total_test_examples, vocabulary_length);
   }
 
   float true_positive_mean = true_positive_total / (float) CROSS_VALIDATION;
