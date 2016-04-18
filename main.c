@@ -25,6 +25,49 @@ unsigned long hash(unsigned char *str){
   return hash;
 }
 
+int compare_hashes(const void *a, const void *b){
+  if(*(unsigned long*)a < *(unsigned long*)b){
+    return -1;
+  }
+
+  if(*(unsigned long*)a > *(unsigned long*)b){
+    return 1;
+  }
+
+  if(*(unsigned long*)a == *(unsigned long*)b){
+    return 0;
+  }
+}
+
+int binary_search(unsigned long key, unsigned long *array, int low, int high){
+  int mid = (high + low) / 2;
+
+  if (array[mid] == key){
+    int total = 0, i;
+
+    for(i = mid; i >= 0 && array[i] == key; i--){
+      total++;
+    }
+
+    for(i = mid; array[i] == key; i++){
+      total++;
+    }
+
+    return total - 1;
+  }
+
+  if(low < high){
+    if(array[mid] > key){
+      return binary_search(key, array, low, mid);
+    }
+    else{ 
+      return binary_search(key, array, mid + 1, high);
+    }
+  }
+
+  return 0;
+}
+
 void is_directory(){
   struct stat statbuf;
 
@@ -37,7 +80,6 @@ void is_directory(){
   }
 }
 
-//have to send the index because of realloc
 int read_file(unsigned long **file, int index, FILE *fp){
   char buffer[200] = {'\0'}, c;
   int i = 0, j = 0;
@@ -56,8 +98,6 @@ int read_file(unsigned long **file, int index, FILE *fp){
       //printf("Adding word '%s' at %d\n", buffer, i);
 
       file[index][i] = hash(buffer);
-
-      //printf("%s %d\n", file[index][i], strlen(buffer));
       memset(buffer, '\0', 200);
 
       j = 0;
@@ -86,7 +126,6 @@ int get_vocabulary(unsigned long **learn_examples, int *words_per_learn_example,
       for(k = 0; k < vocabulary_counter; k++){
         if(vocabulary_temp[k] == learn_examples[i][j]){
           found = 1;
-          //printf("Found '%s' at %d\n", vocabulary_temp[k], k);
           break;
         }
       }
@@ -97,8 +136,6 @@ int get_vocabulary(unsigned long **learn_examples, int *words_per_learn_example,
         }
 
         vocabulary_temp[vocabulary_counter] = learn_examples[i][j];
-        //printf("Adding '%f' at %d\n", learn_examples[i][j], vocabulary_counter);
-
         vocabulary_counter++;
       }
     }
@@ -157,9 +194,6 @@ void *thread(void *arg){
     cross_learning_end_index = end_index;
   }
 
-  //printf("Cross validation number %d, training with files %d.txt - %d.txt, testing with files %d.txt - %d.txt\n", i,
-  //  cross_learning_start_index, cross_learning_end_index, cross_testing_start_index, cross_testing_end_index);
-
   if((words_per_learn_example = calloc(total_learn_examples, sizeof(int))) == NULL) {
     errx(-1, "error on words_per_learn_example malloc, errno = %d, %s", errno, strerror(errno));
   }
@@ -203,6 +237,8 @@ void *thread(void *arg){
     else{
       N_neg += words_per_learn_example[j];
     }
+
+    qsort(learn_examples[j], words_per_learn_example[j], sizeof(unsigned long), compare_hashes);
   }
 
   double *P_conditional_pos;
@@ -221,16 +257,17 @@ void *thread(void *arg){
     //nj ← number of times word Wj occurs in Texti
     int n_pos = 0;
     int n_neg = 0;
+    int total;
 
     for(k = 0; k < total_learn_examples; k++){
-      for(l = 0; l < words_per_learn_example[k]; l++){
-        if(vocabulary[j] == learn_examples[k][l]){
-          if(k >= learn_half_index){
-            n_pos++;
-          }
-          else{
-            n_neg++;
-          }
+      total = binary_search(vocabulary[j], learn_examples[k], 0, words_per_learn_example[k] - 1);
+
+      if(total){
+        if(k >= learn_half_index){
+          n_pos = total + n_pos;
+        }
+        else{
+          n_neg = total + n_neg;
         }
       }
     }
@@ -240,7 +277,6 @@ void *thread(void *arg){
     P_conditional_neg[j] = log((n_neg + 1) / (double) (N_neg + vocabulary_length));
   }
 
-  
   //CLASSIFY_NAIVE_BAYES_TEXT(Doc)
   for(j = 0; j < total_test_examples; j++){
     double NB_pos = 0;
@@ -249,6 +285,7 @@ void *thread(void *arg){
     for(k = 0; k < words_per_test_example[j]; k++){
       for(l = 0; l < vocabulary_length; l++){
         //all word positions in Doc that contain tokens found in Vocabulary
+        //can't use binary search here because we need the indexes (we can but it would be too much work)
         if(vocabulary[l] == test_examples[j][k]){
           NB_pos += P_conditional_pos[l];
           NB_neg += P_conditional_neg[l];
@@ -273,8 +310,6 @@ void *thread(void *arg){
       }
     }
   }
-
-  //printf("TP: %d, FN: %d, TN: %d, FP %d, Total: %d\n", true_positive[i], false_negative[i], true_negative[i], false_positive[i], true_positive[i] + false_negative[i] + true_negative[i] + false_positive[i]);
 }
 
 int main(int argc, char **argv){
@@ -313,7 +348,6 @@ int main(int argc, char **argv){
   printf("End index: %d\n", end_index);
   printf("Total examples to learn: %d\n", total_learn_examples);
   printf("Total examples to test: %d\n\n", total_test_examples);
-  //printf("Cross validation (with both negative and positive files) details:\n");
 
   int true_positive_total = 0;
   int true_negative_total = 0;
@@ -369,16 +403,16 @@ int main(int argc, char **argv){
   float false_negative_sd = 0.0;
 
   for(i = 0; i < CROSS_VALIDATION; i++){
-     true_positive_sd += pow(true_positive[i] - true_positive_mean, 2);
-     true_negative_sd += pow(true_negative[i] - true_negative_mean, 2);
-     false_positive_sd += pow(false_positive[i] - false_positive_mean, 2);
-     false_negative_sd += pow(false_negative[i] - false_negative_mean, 2);
+    true_positive_sd += pow(true_positive[i] - true_positive_mean, 2);
+    true_negative_sd += pow(true_negative[i] - true_negative_mean, 2);
+    false_positive_sd += pow(false_positive[i] - false_positive_mean, 2);
+    false_negative_sd += pow(false_negative[i] - false_negative_mean, 2);
   }
 
-  printf("Mean True Positive: %.3f, Standard Deviation: %.3f\n", true_positive_mean, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean True Negative: %.3f, Standard Deviation: %.3f\n", true_negative_mean, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Positive: %.3f, Standard Deviation: %.3f\n", false_positive_mean, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Negative: %.3f, Standard Deviation: %.3f\n\n", false_negative_mean, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Positive: %.3f (total %d), Standard Deviation: %.3f\n", true_positive_mean, true_positive_total, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Negative: %.3f (total %d), Standard Deviation: %.3f\n", true_negative_mean, true_negative_total, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Positive: %.3f (total %d), Standard Deviation: %.3f\n", false_positive_mean, false_positive_total, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Negative: %.3f (total %d), Standard Deviation: %.3f\n\n", false_negative_mean, false_negative_total, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
 
   float recall = true_positive_total / (float) (true_positive_total + false_negative_total);
   float precision = true_positive_total / (float) (true_positive_total + false_positive_total);

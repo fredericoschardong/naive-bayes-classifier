@@ -1,0 +1,23 @@
+#before using binary search
+
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 43200
+Total examples to test: 4800
+
+Mean True Positive: 1808.600, Standard Deviation: 62.920
+Mean True Negative: 2057.500, Standard Deviation: 59.043
+Mean False Positive: 342.500, Standard Deviation: 59.043
+Mean False Negative: 591.400, Standard Deviation: 62.920
+
+True Positive Rate: 0.754
+False Positive Rate: 0.143
+F-Measure: 0.795
+
+real	230m42.234s
+user	1817m59.883s
+sys	0m23.874s
+
+#after using binary search
