@@ -20,10 +20,10 @@ End index: 999
 Total examples to learn: 900
 Total examples to test: 100
 
-Mean True Positive: 54.200, Standard Deviation: 35.134
-Mean True Negative: 74.500, Standard Deviation: 28.159
-Mean False Positive: 25.500, Standard Deviation: 28.159
-Mean False Negative: 45.800, Standard Deviation: 35.134
+Mean True Positive: 56.9, Standard Deviation: 29.50
+Mean True Negative: 77.6, Standard Deviation: 21.54
+Mean False Positive: 22.4, Standard Deviation: 21.54
+Mean False Negative: 43.1, Standard Deviation: 29.50
 
 Precision: 0.680
 Recall: 0.542
