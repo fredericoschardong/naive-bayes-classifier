@@ -5,10 +5,10 @@ A simple implementation of [Tom Mitchell's](http://personal.disco.unimib.it/Vann
 In this example the documents are a dump of 25000 positive and 25000 negative movie feedbacks from IMDB split into two folders (IMDB/pos and IMDB/neg). There are two possible groups a document can be classified into: positive or negative.
 
 To compile simply run:
-`gcc -o main main.c -lm -lpthread`
+`gcc -o main main.c -lm -lpthread -Wextra -Wall`
 
 And then:
-`./main IMDB 0 99`
+`./main IMDB 0 999`
 
 Where the first parameter is the IMDB folder, second is the starting index and third is the last document index.
 
@@ -16,20 +16,21 @@ Here is what the output looks like:
 ```
 Reading from: IMDB
 Start index: 0
-End index: 99
-Total examples to learn: 180
-Total examples to test: 20
+End index: 999
+Total examples to learn: 900
+Total examples to test: 100
 
-Mean True Positive: 6.700, Standard Deviation: 2.111
-Mean True Negative: 9.300, Standard Deviation: 0.823
-Mean False Positive: 0.700, Standard Deviation: 0.823
-Mean False Negative: 3.300, Standard Deviation: 2.111
+Mean True Positive: 54.200 (total 542), Standard Deviation: 35.134
+Mean True Negative: 74.500 (total 745), Standard Deviation: 28.159
+Mean False Positive: 25.500 (total 255), Standard Deviation: 28.159
+Mean False Negative: 45.800 (total 458), Standard Deviation: 35.134
 
-True Positive Rate: 0.670
-False Positive Rate: 0.070
-F-Measure: 0.770
+Precision: 0.680
+Recall: 0.542
+False Positive Rate: 0.255
+F-Measure: 0.603
 ```
 
-As you can see 90% of the documents from the chosen range are used as training set and 10% is used for testing, that is not part of Mitchell's routine. Also, ten-fold cross validation is implemented so the mean values are the result of the ten different learning and testing combinations as well as the TP and FP rates and F-Measure.
+As you can see 90% of the documents from the chosen range are used as training set and 10% for testing, that is not part of Mitchell's routine. Also, ten-fold cross validation is implemented and the mean values are the result of the ten different learning and testing combinations as well as the Precision and Recall rates and F-Measure.
 
 Look at previous commits for simpler code (string comparison instead of using hash, for example).

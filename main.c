@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
+#include <err.h>
 #include <errno.h>
 #include <math.h>
 #include <sys/stat.h>
@@ -18,7 +20,7 @@ unsigned long hash(unsigned char *str){
   unsigned long hash = 5381;
   int c;
 
-  while (c = *str++){
+  while ((c = *str++)){
     hash = ((hash << 5) + hash) + c;
   }
 
@@ -34,9 +36,7 @@ int compare_hashes(const void *a, const void *b){
     return 1;
   }
 
-  if(*(unsigned long*)a == *(unsigned long*)b){
-    return 0;
-  }
+  return 0;
 }
 
 int binary_search(unsigned long key, unsigned long *array, int array_size, int low, int high){
@@ -83,7 +83,8 @@ void is_directory(){
 
 int read_file(unsigned long **file, int index, FILE *fp){
   int i = 0, j = 0;
-  char buffer[200] = {'\0'}, c;
+  unsigned char buffer[200] = {'\0'};
+  char c;
   unsigned long *file_temp;
 
   file_temp = *file;
@@ -170,7 +171,7 @@ int read_examples(int file_index, char *type, unsigned long **examples, int word
 
 void *thread(void *arg){
   uint i = (intptr_t)arg;
-  int j, k, l;
+  int j, k;
   int words_pos_learn = 0, words_neg_learn = 0, *words_pos_test, *words_neg_test;
   int vocabulary_length = 0;
 
@@ -181,7 +182,6 @@ void *thread(void *arg){
   int cross_learning_start_index = cross_threshold * i + start_index;
   int cross_learning_end_index = cross_threshold * ((CROSS_VALIDATION - 1 + i) % (CROSS_VALIDATION)) - 1 + start_index;
   int cross_testing_start_index = cross_learning_end_index + 1;
-  int cross_testing_end_index = cross_testing_start_index + cross_threshold - 1;
 
   if(cross_learning_end_index == -1){
     cross_learning_end_index = end_index;
@@ -299,32 +299,33 @@ void *thread(void *arg){
   }
 
   //CLASSIFY_NAIVE_BAYES_TEXT(Doc)
-  for(l = 0; l < vocabulary_length; l++){
-    for(j = 0; j < total_test_examples; j++){
+  for(j = 0; j < vocabulary_length; j++){
+    for(k = 0; k < total_test_examples; k++){
       //all word positions in Doc that contain tokens found in Vocabulary
-      NB_pos_pos[j] += P_conditional_pos[l] * binary_search(vocabulary[l], test_pos[j], words_pos_test[j] - 1, 0, words_pos_test[j] - 1);
-      NB_pos_neg[j] += P_conditional_neg[l] * binary_search(vocabulary[l], test_pos[j], words_pos_test[j] - 1, 0, words_pos_test[j] - 1);
-
-      NB_neg_pos[j] += P_conditional_pos[l] * binary_search(vocabulary[l], test_neg[j], words_neg_test[j] - 1, 0, words_neg_test[j] - 1);
-      NB_neg_neg[j] += P_conditional_neg[l] * binary_search(vocabulary[l], test_neg[j], words_neg_test[j] - 1, 0, words_neg_test[j] - 1);
+      NB_pos_pos[k] += P_conditional_pos[j] * binary_search(vocabulary[j], test_pos[k], words_pos_test[k] - 1, 0, words_pos_test[k] - 1);
+      NB_pos_neg[k] += P_conditional_neg[j] * binary_search(vocabulary[j], test_pos[k], words_pos_test[k] - 1, 0, words_pos_test[k] - 1);
+      NB_neg_pos[k] += P_conditional_pos[j] * binary_search(vocabulary[j], test_neg[k], words_neg_test[k] - 1, 0, words_neg_test[k] - 1);
+      NB_neg_neg[k] += P_conditional_neg[j] * binary_search(vocabulary[j], test_neg[k], words_neg_test[k] - 1, 0, words_neg_test[k] - 1);
     }
   }
 
-  for(l = 0; l < total_test_examples; l++){
-    if(NB_pos_pos[l] > NB_pos_neg[l]){
+  for(j = 0; j < total_test_examples; j++){
+    if(NB_pos_pos[j] > NB_pos_neg[j]){
       true_positive[i]++;
     }
     else{
       false_negative[i]++;
     }
 
-    if(NB_neg_pos[l] > NB_neg_neg[l]){
+    if(NB_neg_pos[j] > NB_neg_neg[j]){
       false_positive[i]++;
     }
     else{
       true_negative[i]++;
     }
   }
+
+  return NULL;
 }
 
 int main(int argc, char **argv){
@@ -390,13 +391,13 @@ int main(int argc, char **argv){
 
   for(i = 0; i < CROSS_VALIDATION; i++){
     if (pthread_create(&(threads[i]), NULL, &thread, (void *)(intptr_t)i) != 0){
-      errx(-1, "can't create thread :[%s]");
+      errx(-1, "can't create thread, errno = %d, %s", errno, strerror(errno));
     }
   }
 
   for(i = 0; i < CROSS_VALIDATION; i++){
     if(pthread_join(threads[i], NULL) != 0){
-      errx(-1, "pthread_join %s");
+      errx(-1, "pthread_join, errno = %d, %s", errno, strerror(errno));
     }
   }
 
@@ -436,4 +437,6 @@ int main(int argc, char **argv){
   printf("Recall: %.3f\n", recall);
   printf("False Positive Rate: %.3f\n", false_positive_total / (float) (false_positive_total + true_negative_total));
   printf("F-Measure: %.3f\n", (2 * recall * precision) / (recall + precision));
+
+  return 0;
 }
