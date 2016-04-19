@@ -54,7 +54,7 @@ int binary_search(unsigned long key, unsigned long *array, int array_size, int l
     }
 
     //this doesn't look very good
-    return total - 1;
+    return total;
   }
 
   if(low < high){
@@ -96,7 +96,7 @@ int read_file(unsigned long **file, int index, FILE *fp){
 
     if(i > 0 && (c == ' ' || c == '\n' || c == '.')){
       //let's ignore words as: a, an, is, in, at, of, no, to, by, on
-      if(i < 3){
+      if(i < 4){
         memset(buffer, '\0', 200);
         i = 0;
         continue;
@@ -425,10 +425,10 @@ int main(int argc, char **argv){
     false_negative_sd += pow(false_negative[i] - false_negative_mean, 2);
   }
 
-  printf("Mean True Positive: %.3f, Standard Deviation: %.3f\n", true_positive_mean, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean True Negative: %.3f, Standard Deviation: %.3f\n", true_negative_mean, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Positive: %.3f, Standard Deviation: %.3f\n", false_positive_mean, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Negative: %.3f, Standard Deviation: %.3f\n\n", false_negative_mean, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Positive: %.1f, Standard Deviation: %.2f\n", true_positive_mean, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Negative: %.1f, Standard Deviation: %.2f\n", true_negative_mean, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Positive: %.1f, Standard Deviation: %.2f\n", false_positive_mean, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Negative: %.1f, Standard Deviation: %.2f\n\n", false_negative_mean, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
 
   float recall = true_positive_total / (float) (true_positive_total + false_negative_total);
   float precision = true_positive_total / (float) (true_positive_total + false_positive_total);

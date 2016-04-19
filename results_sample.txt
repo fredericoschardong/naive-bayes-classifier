@@ -28,10 +28,10 @@ End index: 24011
 Total examples to learn: 21600
 Total examples to test: 2400
 
-Mean True Positive: 1841.700 (total 18417), Standard Deviation: 178.336
-Mean True Negative: 2029.300 (total 20293), Standard Deviation: 163.705
-Mean False Positive: 370.700 (total 3707), Standard Deviation: 163.705
-Mean False Negative: 558.300 (total 5583), Standard Deviation: 178.336
+Mean True Positive: 1841.700, Standard Deviation: 178.336
+Mean True Negative: 2029.300, Standard Deviation: 163.705
+Mean False Positive: 370.700, Standard Deviation: 163.705
+Mean False Negative: 558.300, Standard Deviation: 178.336
 
 Precision: 0.832
 Recall: 0.767
@@ -51,10 +51,10 @@ End index: 24011
 Total examples to learn: 21600
 Total examples to test: 2400
 
-Mean True Positive: 1827.300 (total 18273), Standard Deviation: 183.803
-Mean True Negative: 2030.100 (total 20301), Standard Deviation: 162.573
-Mean False Positive: 369.900 (total 3699), Standard Deviation: 162.573
-Mean False Negative: 572.700 (total 5727), Standard Deviation: 183.803
+Mean True Positive: 1827.300, Standard Deviation: 183.803
+Mean True Negative: 2030.100, Standard Deviation: 162.573
+Mean False Positive: 369.900, Standard Deviation: 162.573
+Mean False Negative: 572.700, Standard Deviation: 183.803
 
 Precision: 0.832
 Recall: 0.761
