@@ -81,7 +81,7 @@ void is_directory(){
   }
 }
 
-int read_file(unsigned long **file, int index, int *each_file_index, int file_index, FILE *fp){
+int read_file(unsigned long **file, int index, FILE *fp){
   int i = 0, j = 0;
   char buffer[200] = {'\0'}, c;
   unsigned long *file_temp;
@@ -114,10 +114,6 @@ int read_file(unsigned long **file, int index, int *each_file_index, int file_in
       i = 0;
       j++;
     }
-  }
-
-  if(each_file_index != NULL){
-    each_file_index[file_index] = index;
   }
 
   *file = file_temp;
@@ -155,7 +151,7 @@ int get_vocabulary(unsigned long *examples, int words_examples, unsigned long **
   return vocabulary_index;
 }
 
-int read_examples(int words_index, int file_index, char *type, unsigned long **examples, int words_example, int *each_file_index){
+int read_examples(int file_index, char *type, unsigned long **examples, int words_example){
   char file_path[strlen(directory) + 11]; // will append "/24999.txt" + 1 for \0
   FILE *fp;
 
@@ -165,7 +161,7 @@ int read_examples(int words_index, int file_index, char *type, unsigned long **e
     errx(-1, "File opening error, errno = %d, %s - %s", errno, strerror(errno), file_path);
   }
 
-  words_example = read_file(examples, words_example, each_file_index, words_index, fp);
+  words_example = read_file(examples, words_example, fp);
 
   fclose(fp);
 
@@ -175,12 +171,12 @@ int read_examples(int words_index, int file_index, char *type, unsigned long **e
 void *thread(void *arg){
   uint i = (intptr_t)arg;
   int j, k, l;
-  int words_pos_learn = 0, words_neg_learn = 0, words_pos_test = 0, words_neg_test = 0;
+  int words_pos_learn = 0, words_neg_learn = 0, *words_pos_test, *words_neg_test;
   int vocabulary_length = 0;
 
   unsigned long *vocabulary;
   unsigned long *learn_pos, *learn_neg;
-  unsigned long *test_pos, *test_neg;
+  unsigned long **test_pos, **test_neg;
 
   int cross_learning_start_index = cross_threshold * i + start_index;
   int cross_learning_end_index = cross_threshold * ((CROSS_VALIDATION - 1 + i) % (CROSS_VALIDATION)) - 1 + start_index;
@@ -199,20 +195,28 @@ void *thread(void *arg){
     errx(-1, "error on learn_neg malloc, errno = %d, %s", errno, strerror(errno));
   }
 
-  if((test_pos = malloc(sizeof(test_pos))) == NULL) {
+  if((test_pos = malloc(total_test_examples * sizeof(test_pos))) == NULL) {
     errx(-1, "error on test_pos malloc, errno = %d, %s", errno, strerror(errno));
   }
 
-  if((test_neg = malloc(sizeof(test_neg))) == NULL) {
+  if((test_neg = malloc(total_test_examples * sizeof(test_neg))) == NULL) {
     errx(-1, "error on test_neg malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((words_pos_test = calloc(total_learn_examples, sizeof(int))) == NULL) {
+    errx(-1, "error on words_pos_test malloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((words_neg_test = calloc(total_learn_examples, sizeof(int))) == NULL) {
+    errx(-1, "error on words_neg_test malloc, errno = %d, %s", errno, strerror(errno));
   }
 
   //1. Collect all words and other tokens that occur in Examples:
   for(j = 0; j < total_learn_examples; j++){
     int file_index = (j + cross_learning_start_index) % (end_index + 1);
 
-    words_pos_learn = read_examples(j, file_index, "pos", &learn_pos, words_pos_learn, NULL);
-    words_neg_learn = read_examples(j, file_index, "neg", &learn_neg, words_neg_learn, NULL);
+    words_pos_learn = read_examples(file_index, "pos", &learn_pos, words_pos_learn);
+    words_neg_learn = read_examples(file_index, "neg", &learn_neg, words_neg_learn);
   }
 
   qsort(learn_pos, words_pos_learn, sizeof(unsigned long), compare_hashes);
@@ -227,21 +231,28 @@ void *thread(void *arg){
   vocabulary_length += get_vocabulary(learn_pos, words_pos_learn, &vocabulary, 0);
   vocabulary_length = get_vocabulary(learn_neg, words_neg_learn, &vocabulary, vocabulary_length);
 
-  int *each_test_pos_index, *each_test_neg_index;
-
-  if((each_test_pos_index = calloc(total_test_examples, sizeof(each_test_pos_index))) == NULL) {
-    errx(-1, "error on each_test_pos_index calloc, errno = %d, %s", errno, strerror(errno));
-  }
-
-  if((each_test_neg_index = calloc(total_test_examples, sizeof(each_test_neg_index))) == NULL) {
-    errx(-1, "error on each_test_neg_index calloc, errno = %d, %s", errno, strerror(errno));
-  }
+  double words_pos_test_vocabulary_length = vocabulary_length;
+  double words_neg_test_vocabulary_length = vocabulary_length;
 
   for(j = 0; j < total_test_examples; j++){
     int file_index = (j + cross_testing_start_index) % (end_index + 1);
 
-    words_pos_test = read_examples(j, file_index, "pos", &test_pos, words_pos_test, each_test_pos_index);
-    words_neg_test = read_examples(j, file_index, "neg", &test_neg, words_neg_test, each_test_neg_index);
+    if((test_neg[j] = malloc(sizeof(test_neg[j]))) == NULL) {
+      errx(-1, "error on test_neg[j] malloc, errno = %d, %s", errno, strerror(errno));
+    }
+
+    if((test_pos[j] = malloc(sizeof(test_pos[j]))) == NULL) {
+      errx(-1, "error on test_pos[j] malloc, errno = %d, %s", errno, strerror(errno));
+    }
+
+    words_pos_test[j] = read_examples(file_index, "pos", &test_pos[j], 0);
+    words_neg_test[j] = read_examples(file_index, "neg", &test_neg[j], 0);
+
+    words_pos_test_vocabulary_length += words_pos_test[j];
+    words_neg_test_vocabulary_length += words_neg_test[j];
+
+    qsort(test_pos[j], words_pos_test[j], sizeof(unsigned long), compare_hashes);
+    qsort(test_neg[j], words_neg_test[j], sizeof(unsigned long), compare_hashes);
   }
 
   double *P_conditional_pos;
@@ -255,9 +266,6 @@ void *thread(void *arg){
     errx(-1, "error on P_conditional_neg calloc, errno = %d, %s", errno, strerror(errno));
   }
 
-  double words_pos_test_vocabulary_length = words_pos_test + vocabulary_length;
-  double words_neg_test_vocabulary_length = words_neg_test + vocabulary_length;
-
   //for each word Wj in Vocabulary
   for(j = 0; j < vocabulary_length; j++){
     //nj ← number of times word Wj occurs in Texti
@@ -269,60 +277,52 @@ void *thread(void *arg){
     P_conditional_neg[j] = log((n_neg + 1) / words_neg_test_vocabulary_length);
   }
 
-  k = 0;
-  double NB_pos = 0;
-  double NB_neg = 0;
+  double *NB_pos_pos;
+  double *NB_pos_neg;
+  double *NB_neg_pos;
+  double *NB_neg_neg;
 
-  for(j = 0; j < words_pos_test; j++){
-    for(l = 0; l < vocabulary_length; l++){
+  if((NB_pos_pos = calloc(total_test_examples, sizeof(NB_pos_pos))) == NULL) {
+    errx(-1, "error on NB_pos_pos calloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((NB_neg_pos = calloc(total_test_examples, sizeof(NB_neg_pos))) == NULL) {
+    errx(-1, "error on NB_neg_pos calloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((NB_pos_neg = calloc(total_test_examples, sizeof(NB_pos_neg))) == NULL) {
+    errx(-1, "error on NB_pos_neg calloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  if((NB_neg_neg = calloc(total_test_examples, sizeof(NB_neg_neg))) == NULL) {
+    errx(-1, "error on NB_neg_neg calloc, errno = %d, %s", errno, strerror(errno));
+  }
+
+  //CLASSIFY_NAIVE_BAYES_TEXT(Doc)
+  for(l = 0; l < vocabulary_length; l++){
+    for(j = 0; j < total_test_examples; j++){
       //all word positions in Doc that contain tokens found in Vocabulary
-      //can't use binary search here because we need the indexes (we can but it would be too much work)
-      if(vocabulary[l] == test_pos[j]){
-        NB_pos += P_conditional_pos[l];
-        NB_neg += P_conditional_neg[l];
-      }
+      NB_pos_pos[j] += P_conditional_pos[l] * binary_search(vocabulary[l], test_pos[j], words_pos_test[j] - 1, 0, words_pos_test[j] - 1);
+      NB_pos_neg[j] += P_conditional_neg[l] * binary_search(vocabulary[l], test_pos[j], words_pos_test[j] - 1, 0, words_pos_test[j] - 1);
 
-      //terrible way to test if we are in the last position of the nested loops
-      if(j > each_test_pos_index[k] || (j == (words_pos_test - 1) && l == (vocabulary_length - 1))){
-        if(NB_pos > NB_neg){
-          true_positive[i]++;
-        }
-        else{
-          false_negative[i]++;
-        }
-
-        NB_pos = NB_neg = 0;
-        k++;
-      }
+      NB_neg_pos[j] += P_conditional_pos[l] * binary_search(vocabulary[l], test_neg[j], words_neg_test[j] - 1, 0, words_neg_test[j] - 1);
+      NB_neg_neg[j] += P_conditional_neg[l] * binary_search(vocabulary[l], test_neg[j], words_neg_test[j] - 1, 0, words_neg_test[j] - 1);
     }
   }
 
-  k = 0;
-  NB_pos = 0;
-  NB_neg = 0;
+  for(l = 0; l < total_test_examples; l++){
+    if(NB_pos_pos[l] > NB_pos_neg[l]){
+      true_positive[i]++;
+    }
+    else{
+      false_negative[i]++;
+    }
 
-  for(j = 0; j < words_neg_test; j++){
-    for(l = 0; l < vocabulary_length; l++){
-      //all word positions in Doc that contain tokens found in Vocabulary
-      //can't use binary search because test can't be ordered (unless we put each file's words in a separated array)
-      if(vocabulary[l] == test_neg[j]){
-        NB_pos += P_conditional_pos[l];
-        NB_neg += P_conditional_neg[l];
-      }
-
-      //we need this ugly logic because all test words are in one array
-      //terrible way to test if we are in the last position of the nested loops
-      if(j > each_test_neg_index[k] || (j == (words_neg_test - 1) && l == (vocabulary_length - 1))){
-        if(NB_pos > NB_neg){
-          false_positive[i]++;
-        }
-        else{
-          true_negative[i]++;
-        }
-
-        NB_pos = NB_neg = 0;
-        k++;
-      }
+    if(NB_neg_pos[l] > NB_neg_neg[l]){
+      false_positive[i]++;
+    }
+    else{
+      true_negative[i]++;
     }
   }
 }

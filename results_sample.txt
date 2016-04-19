@@ -1,5 +1,4 @@
 #before using binary search
-
 $ time ./main IMDB 12 24011
 Reading from: IMDB
 Start index: 12
@@ -20,4 +19,49 @@ real	230m42.234s
 user	1817m59.883s
 sys	0m23.874s
 
-#after using binary search
+
+#after using binary search and using words with more than 2 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1841.700 (total 18417), Standard Deviation: 178.336
+Mean True Negative: 2029.300 (total 20293), Standard Deviation: 163.705
+Mean False Positive: 370.700 (total 3707), Standard Deviation: 163.705
+Mean False Negative: 558.300 (total 5583), Standard Deviation: 178.336
+
+Precision: 0.832
+Recall: 0.767
+False Positive Rate: 0.154
+F-Measure: 0.799
+
+real	29m1.478s
+user	224m53.961s
+sys	0m24.326s
+
+
+#after using binary search on classification
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1827.300 (total 18273), Standard Deviation: 183.803
+Mean True Negative: 2030.100 (total 20301), Standard Deviation: 162.573
+Mean False Positive: 369.900 (total 3699), Standard Deviation: 162.573
+Mean False Negative: 572.700 (total 5727), Standard Deviation: 183.803
+
+Precision: 0.832
+Recall: 0.761
+False Positive Rate: 0.154
+F-Measure: 0.795
+
+real	18m31.651s
+user	145m9.543s
+sys	0m23.455s
+
