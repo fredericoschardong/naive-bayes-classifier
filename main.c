@@ -425,10 +425,10 @@ int main(int argc, char **argv){
     false_negative_sd += pow(false_negative[i] - false_negative_mean, 2);
   }
 
-  printf("Mean True Positive: %.3f (total %d), Standard Deviation: %.3f\n", true_positive_mean, true_positive_total, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean True Negative: %.3f (total %d), Standard Deviation: %.3f\n", true_negative_mean, true_negative_total, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Positive: %.3f (total %d), Standard Deviation: %.3f\n", false_positive_mean, false_positive_total, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
-  printf("Mean False Negative: %.3f (total %d), Standard Deviation: %.3f\n\n", false_negative_mean, false_negative_total, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Positive: %.3f, Standard Deviation: %.3f\n", true_positive_mean, sqrt(true_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean True Negative: %.3f, Standard Deviation: %.3f\n", true_negative_mean, sqrt(true_negative_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Positive: %.3f, Standard Deviation: %.3f\n", false_positive_mean, sqrt(false_positive_sd/(float)(CROSS_VALIDATION - 1)));
+  printf("Mean False Negative: %.3f, Standard Deviation: %.3f\n\n", false_negative_mean, sqrt(false_negative_sd/(float)(CROSS_VALIDATION - 1)));
 
   float recall = true_positive_total / (float) (true_positive_total + false_negative_total);
   float precision = true_positive_total / (float) (true_positive_total + false_positive_total);
