@@ -65,3 +65,113 @@ real	18m31.651s
 user	145m9.543s
 sys	0m23.455s
 
+#using words with more than 8 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 2010.2, Standard Deviation: 46.08
+Mean True Negative: 1766.1, Standard Deviation: 54.44
+Mean False Positive: 633.9, Standard Deviation: 54.44
+Mean False Negative: 389.8, Standard Deviation: 46.08
+
+Precision: 0.760
+Recall: 0.838
+False Positive Rate: 0.264
+F-Measure: 0.797
+
+real	3m8.279s
+user	22m13.098s
+sys	0m25.206s
+
+#using words with more than 6 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1897.0, Standard Deviation: 83.06
+Mean True Negative: 1971.1, Standard Deviation: 84.61
+Mean False Positive: 428.9, Standard Deviation: 84.61
+Mean False Negative: 503.0, Standard Deviation: 83.06
+
+Precision: 0.816
+Recall: 0.790
+False Positive Rate: 0.179
+F-Measure: 0.803
+
+real	7m46.081s
+user	58m40.651s
+sys	0m29.209s
+
+#words with more than 4 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1859.4, Standard Deviation: 130.41
+Mean True Negative: 2049.9, Standard Deviation: 118.21
+Mean False Positive: 350.1, Standard Deviation: 118.21
+Mean False Negative: 540.6, Standard Deviation: 130.41
+
+Precision: 0.842
+Recall: 0.775
+False Positive Rate: 0.146
+F-Measure: 0.807
+
+real	13m23.955s
+user	104m0.663s
+sys	0m28.538s
+
+#words with more than 3 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1838.2, Standard Deviation: 181.54
+Mean True Negative: 2053.9, Standard Deviation: 153.84
+Mean False Positive: 346.1, Standard Deviation: 153.84
+Mean False Negative: 561.8, Standard Deviation: 181.54
+
+Precision: 0.842
+Recall: 0.766
+False Positive Rate: 0.144
+F-Measure: 0.802
+
+real	14m23.026s
+user	112m10.544s
+sys	0m27.535s
+
+#more with more than 5 characters
+$ time ./main IMDB 12 24011
+Reading from: IMDB
+Start index: 12
+End index: 24011
+Total examples to learn: 21600
+Total examples to test: 2400
+
+Mean True Positive: 1903.2, Standard Deviation: 96.56
+Mean True Negative: 2018.5, Standard Deviation: 85.29
+Mean False Positive: 381.5, Standard Deviation: 85.29
+Mean False Negative: 496.8, Standard Deviation: 96.56
+
+Precision: 0.833
+Recall: 0.793
+False Positive Rate: 0.159
+F-Measure: 0.813
+
+real	10m31.576s
+user	80m59.279s
+sys	0m28.585s
+
